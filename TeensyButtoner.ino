@@ -1,5 +1,25 @@
 #define REPEATRATE 100 // milliseconds
 
+#define MODE_KEYBOARD 2
+#define MODE_JOY      1
+
+/* This is for the joystick hat position. */
+enum hatpos {
+    HAT_UP = 1,
+    HAT_RIGHT_UP = 2,
+    HAT_RIGHT = 3,
+    HAT_RIGHT_DOWN = 4,
+    HAT_DOWN = 5,
+    HAT_LEFT_DOWN = 6,
+    HAT_LEFT = 7,
+    HAT_LEFT_UP = 8,
+    HAT_OFF = 9
+};
+
+/* By switching this to MODE_KEYBOARD, the Teensy will send keyboard keypress events
+instead of joystick events! By default, it will operate as a joystick. */
+#define OUTPUT_MODE MODE_JOY
+
 const int pinBtnUp = 0;
 const int pinBtnRight = 1;
 const int pinBtnDown = 2;
@@ -56,9 +76,27 @@ short keys[] = {
   KEY_Q  /* RightTrig */
 };
 
+/* We have to fill the first 4 elements so that the arrays are the same length. Those
+buttons are handled by the joystick hat.*/
+short joy_buttons[] = {
+  0, /* Up */
+  0, /* Right */
+  0, /* Down */
+  0, /* Left */
+  10, /* Start */
+  2, /* B Button Number */
+  1, /* A Button Number */
+  5, /* Left Trig Button Number */
+  6  /* Right Trig Button Number */
+};
+
 #define NUMBUTTONS sizeof(buttons)
 typedef void KeyFunction_t(uint8_t c);
-KeyFunction_t* buttonActive[NUMBUTTONS];
+#if OUTPUT_MODE == MODE_JOY 
+  int buttonActive[NUMBUTTONS];
+#else
+  KeyFunction_t* buttonActive[NUMBUTTONS];
+#endif
 KeyFunction_t* keyList[] = {myset_key6, myset_key5, myset_key4, myset_key3, myset_key2, myset_key1};
 int keySlot = sizeof(keyList) / sizeof(KeyFunction_t*);
 
@@ -68,6 +106,9 @@ void setup()
   pinMode(pinLEDOutput, OUTPUT);
   pinMode(pinBattLEDOutput1, OUTPUT);
   pinMode(pinBattLEDOutput2, OUTPUT);
+  #if OUTPUT_MODE == MODE_JOY 
+    Joystick.useManualSend(true);
+  #endif
   for (byte i=0; i< NUMBUTTONS; i++) {
     /* We don't want INPUT_PULLUPs on a HIGH - ON LOW - OFF button. */
     if (!is_inverted[i]){
@@ -84,8 +125,8 @@ void setup()
 
 void loop()
 {
-  /* Uncomment this so the onboard LED is has direct feedback with the start button for an easy indication that everything
-  is working ok.*/
+  /* Uncomment this so the onboard LED is has direct feedback with the start button for 
+  an easy indication that everything is working ok.*/
   //digitalWrite ( pinLEDOutput, digitalRead(pinBtnStart));
   fcnProcessButtons();
   fcnCheckBatteryLevel();
@@ -93,6 +134,7 @@ void loop()
 
 void fcnCheckBatteryLevel()
 {
+  /* This value could be "smoothed" by averaging the reads over a period of time. */
   int currentBatteryLevel = analogRead(pinBattProbe);
   float batteryVoltage = currentBatteryLevel * (5.0 / 1023.0);
   if (batteryVoltage < 3.3){
@@ -120,7 +162,6 @@ void batteryIndicator(bool low_battery)
     }
 }
 
-//Function to process the buttons from the SNES controller
 void fcnProcessButtons()
 {
   bool keysPressed = false;
@@ -143,7 +184,12 @@ void fcnProcessButtons()
   }
   
   if (keysPressed || keysReleased){
-    Keyboard.send_now(); //update all the keypresses
+    #if OUTPUT_MODE == MODE_JOY 
+      checkHatPos();
+      Joystick.send_now();
+    #else
+      Keyboard.send_now(); //update all the keypresses
+    #endif    
   }
 }
 
@@ -167,23 +213,114 @@ bool buttonState(int i)
     }  
   }
 }
+
+/* This is an int because there's an issue in Arduino (1.0.5) involving typedefs in the same sketch as
+the functions they are used in. Basically, the prototype generator does not resolve the typedef'd
+type, so the function does not map to it's generated prototype. */
+void setHatPos(int pos)
+{
+    switch (pos){
+        case HAT_UP:{
+              Joystick.hat(0);
+        } break;
+
+        case HAT_RIGHT_UP:{
+              Joystick.hat(45);
+        } break;
+        
+        case HAT_RIGHT:{
+              Joystick.hat(90);
+        } break;
+        
+        case HAT_RIGHT_DOWN:{
+              Joystick.hat(135);
+        } break;
+        
+        case HAT_DOWN:{
+              Joystick.hat(180);
+        } break;
+        
+        case HAT_LEFT_DOWN:{
+              Joystick.hat(225);
+        } break;
+        
+        case HAT_LEFT:{
+              Joystick.hat(270);
+        } break;
+
+        case HAT_LEFT_UP:{
+              Joystick.hat(315);
+        } break;
+        
+        case HAT_OFF:{
+              Joystick.hat(-1);
+        } break;
+    }
+}
+
+
+void checkHatPos()
+{
+    /* This is the Buttons (4 way) to Hat (8 way) mapping table. It's not the nicest looking bit. */
+    if (!buttonActive[0] && !buttonActive[1] && !buttonActive[2] && !buttonActive[3]){
+        setHatPos(HAT_OFF);
+    } else if (buttonActive[0] && !buttonActive[1] && !buttonActive[2] && !buttonActive[3]){
+        setHatPos(HAT_UP);
+    } else if (buttonActive[0] && buttonActive[1] && !buttonActive[2] && !buttonActive[3]){
+        setHatPos(HAT_RIGHT_UP);
+    } else if (!buttonActive[0] && buttonActive[1] && !buttonActive[2] && !buttonActive[3]){
+        setHatPos(HAT_RIGHT);
+    } else if (!buttonActive[0] && buttonActive[1] && buttonActive[2] && !buttonActive[3]){
+        setHatPos(HAT_RIGHT_DOWN);
+    } else if (!buttonActive[0] && !buttonActive[1] && buttonActive[2] && !buttonActive[3]){
+        setHatPos(HAT_DOWN);
+    } else if (!buttonActive[0] && !buttonActive[1] && buttonActive[2] && buttonActive[3]){
+        setHatPos(HAT_LEFT_DOWN);
+    } else if (!buttonActive[0] && !buttonActive[1] && !buttonActive[2] && buttonActive[3]){
+        setHatPos(HAT_LEFT);
+    } else if (buttonActive[0] && !buttonActive[1] && !buttonActive[2] && buttonActive[3]){
+        setHatPos(HAT_LEFT_UP);
+    }
+}  
   
 void activateButton(byte index)
 {
-  if (keySlot) //any key slots left?
-  {
-    keySlot--; //Push the keySlot stack
-    buttonActive[index] = keyList[keySlot]; //Associate the keySlot function pointer with the button
-    (*keyList[keySlot])(keys[index]); //Call the key slot function to set the key value
-  }
+   #if OUTPUT_MODE == MODE_JOY 
+      //Activate Joystick Button
+      if (index > 3){
+          // Regular Button
+          Joystick.button(joy_buttons[index], 1);
+      } 
+          
+      buttonActive[index] = 1;
+   #else
+    /* Activate Keyboard Button */
+    if (keySlot) //any key slots left?
+    {
+      keySlot--; //Push the keySlot stack
+      buttonActive[index] = keyList[keySlot]; //Associate the keySlot function pointer with the button
+      (*keyList[keySlot])(keys[index]); //Call the key slot function to set the key value
+    }
+   #endif  
 }
 
 void releaseButton(byte index)
 {
-  keyList[keySlot] = buttonActive[index]; //retrieve the keySlot function pointer
-  buttonActive[index] = 0; //mark the button as no longer pressed
-  (*keyList[keySlot])(0); //release the key slot
-  keySlot++; //pop the keySlot stack
+   #if OUTPUT_MODE == MODE_JOY 
+      //Release Joystick Button
+      if (index > 3){
+          // Regular Button
+          Joystick.button(joy_buttons[index], 0);
+      } 
+          
+      buttonActive[index] = 0;
+   #else
+    /* Activate Keyboard Button */
+    keyList[keySlot] = buttonActive[index]; //retrieve the keySlot function pointer
+    buttonActive[index] = 0; //mark the button as no longer pressed
+    (*keyList[keySlot])(0); //release the key slot
+    keySlot++; //pop the keySlot stack
+   #endif  
 }
 
 void myset_key1(uint8_t c)
