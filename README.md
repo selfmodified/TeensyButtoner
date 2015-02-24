@@ -5,8 +5,7 @@ Hi there!
 
 This cool sketch allows the Teensy to do a couple things for your Raspberry Gear.
 First and foremost, it polls the state of the button inputs and sends (your choice at compile time) either key press events, or joystick events.
-Secondly, it does analog reads on your battery voltage to determine what your battery level is. If it determines that it's low
-(Less or equal to ~3.3V) the battery indicator will pan to red. If it's normal and happy, it'll be green.
+Secondly, it determines if headphones are plugged in, and if so disables the MAX98306 amplifier.
 
 <p> You can switch the types of events it sends by switching the <i>#define OUTPUT_MODE</i> at the top. There are two definitions, <i>MODE_KEYBOARD</i>
 and <i>MODE_JOY</i>. You can also easily change the pin numbers in the collection of const ints at the top, if need be. </p>
