@@ -24,6 +24,7 @@ const int pinBtnUp = 0;
 const int pinBtnRight = 1;
 const int pinBtnDown = 2;
 const int pinBtnLeft = 3;
+const int pinBtnSelect = 7;
 const int pinBtnStart = 4;
 const int pinBtnB = 5;
 const int pinBtnA = 6;
@@ -34,15 +35,15 @@ const int pinLEDOutput = 11;
 const int pinBattLEDOutput1 = 18;
 const int pinBattLEDOutput2 = 19;
 
-const int pinBattProbe = 17;
-
-bool low_batt = false;
+const int pinAmpShdwn = 16;
+const int pinHeadphoneDetect = 15;
 
 byte buttons[] = { 
   pinBtnUp,
   pinBtnRight,
   pinBtnDown,
   pinBtnLeft,
+  pinBtnSelect,
   pinBtnStart,
   pinBtnB,
   pinBtnA,
@@ -57,6 +58,7 @@ bool is_inverted[] = {
   false, /* Right */
   false, /* Down */
   false, /* Left */
+  true, /* Select */
   false, /* Start */
   false, /* B */
   false, /* A */
@@ -69,6 +71,7 @@ short keys[] = {
   KEY_RIGHT, /* Right */
   KEY_DOWN, /* Down */
   KEY_LEFT, /* Left */
+  KEY_TAB, /* Select */
   KEY_ENTER, /* Start */
   KEY_B,  /* B */
   KEY_A,  /* A */
@@ -83,6 +86,7 @@ short joy_buttons[] = {
   0, /* Right */
   0, /* Down */
   0, /* Left */
+  9, /* Select */
   10, /* Start */
   2, /* B Button Number */
   1, /* A Button Number */
@@ -106,6 +110,11 @@ void setup()
   pinMode(pinLEDOutput, OUTPUT);
   pinMode(pinBattLEDOutput1, OUTPUT);
   pinMode(pinBattLEDOutput2, OUTPUT);
+  pinMode(pinHeadphoneDetect, INPUT_PULLUP);
+  pinMode(pinAmpShdwn, OUTPUT);
+  pinMode(pinBattProbe, INPUT);
+  /* Turn the amplifier board on by default... */
+  digitalWrite(pinAmpShdwn, HIGH);
   #if OUTPUT_MODE == MODE_JOY 
     Joystick.useManualSend(true);
   #endif
@@ -129,36 +138,16 @@ void loop()
   an easy indication that everything is working ok.*/
   //digitalWrite ( pinLEDOutput, digitalRead(pinBtnStart));
   fcnProcessButtons();
-  fcnCheckBatteryLevel();
+  fcnCheckAmplifierState();
 }
 
-void fcnCheckBatteryLevel()
-{
-  /* This value could be "smoothed" by averaging the reads over a period of time. */
-  int currentBatteryLevel = analogRead(pinBattProbe);
-  float batteryVoltage = currentBatteryLevel * (5.0 / 1023.0);
-  if (batteryVoltage < 3.3){
-     /* Battery floor cutoff is coming very soon... */  
-     batteryIndicator(true);
-  } else {
-      /* This could alternatively be done by reading the state of one of the LED output pins to determine
-      what the LED is currently doing, however the boolean is less cryptic. */
-      if (low_batt == true){
-          batteryIndicator(false);
-      }
-  }
-}
-
-void batteryIndicator(bool low_battery)
-{
-    if (low_battery){
-      digitalWrite(pinBattLEDOutput1, LOW);
-      digitalWrite(pinBattLEDOutput2, HIGH);
-      low_batt = true;
-    } else {
-      digitalWrite(pinBattLEDOutput1, HIGH);
-      digitalWrite(pinBattLEDOutput2, LOW);
-      low_batt = false;
+void fcnCheckAmplifierState(){
+    if (!digitalRead(pinHeadphoneDetect) && digitalRead(pinAmpShdwn)){
+        /* Headphones inserted, turn the amp off... */
+        digitalWrite(pinAmpShdwn, LOW);
+    } else if (digitalRead(pinHeadphoneDetect) && !digitalRead(pinAmpShdwn)){
+        /* Headphones were removed, turn the amp back on... */
+        digitalWrite(pinAmpShdwn, HIGH);
     }
 }
 
