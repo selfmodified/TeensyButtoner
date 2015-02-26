@@ -38,6 +38,12 @@ const int pinBattLEDOutput2 = 19;
 const int pinAmpShdwn = 16;
 const int pinHeadphoneDetect = 15;
 
+int select_counter = 0;
+bool escaped = false;
+#define TIME_TO_ESCAPE 800
+#define ESCAPE_KEY KEY_ESC
+#define SELECT_KEY_INDEX 4
+
 byte buttons[] = { 
   pinBtnUp,
   pinBtnRight,
@@ -112,7 +118,6 @@ void setup()
   pinMode(pinBattLEDOutput2, OUTPUT);
   pinMode(pinHeadphoneDetect, INPUT_PULLUP);
   pinMode(pinAmpShdwn, OUTPUT);
-  pinMode(pinBattProbe, INPUT);
   /* Turn the amplifier board on by default... */
   digitalWrite(pinAmpShdwn, HIGH);
   #if OUTPUT_MODE == MODE_JOY 
@@ -160,6 +165,13 @@ void fcnProcessButtons()
     // are any of them pressed?
     if (buttonState(i)){ //this button is pressed
       keysPressed = true;
+        if (i == SELECT_KEY_INDEX){
+          select_counter++;
+          if (select_counter >= TIME_TO_ESCAPE){
+            select_counter = 0;
+            sendEscape();  
+          }
+        }
       if (!buttonActive[i]){ //was it pressed before?
         activateButton(i); //no - activate the keypress
       }
@@ -167,6 +179,10 @@ void fcnProcessButtons()
       if (buttonActive[i]) { //was it pressed before?
         releaseButton(i); //yes - release the keypress
         keysReleased = true;
+        if (i == SELECT_KEY_INDEX){
+            select_counter = 0;
+            escaped = false;
+        }
       }
       
     }
@@ -272,6 +288,18 @@ void checkHatPos()
     }
 }  
   
+/* Sends an ESCAPE keypress, to back us out of the emulator! */
+void sendEscape(){
+    if (!escaped){
+      Keyboard.set_key1(ESCAPE_KEY);
+      Keyboard.send_now();
+      delay(10);
+      Keyboard.set_key1(0);
+      Keyboard.send_now();
+      escaped = true;
+    } 
+}
+    
 void activateButton(byte index)
 {
    #if OUTPUT_MODE == MODE_JOY 
